@@ -215,10 +215,6 @@ class OrcaLog(ESSAdapter):
         """Not implemented for Orca"""
         raise NotImplementedError('The load_scan_frozen_atoms method is not implemented for Orca Logs')
 
-    def get_D1_diagnostic(self):
-        """Not implemented for Orca"""
-        raise NotImplementedError('The get_D1_diagnostic method is not implemented for Orca Logs')
-
     def get_T1_diagnostic(self):
         """
         Returns the T1 diagnostic from output log.

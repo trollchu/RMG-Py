@@ -126,21 +126,23 @@ class ESSAdapter(ABC):
         """
         pass
 
-    @abstractmethod
     def get_D1_diagnostic(self):
         """
         Returns the D1 diagnostic from output log.
-        If multiple occurrences exist, returns the last occurrence
+        If multiple occurrences exist, returns the last occurrence.
+        Should be implemented by the relevant subclass.
         """
-        pass
+        raise NotImplementedError(f"get_D1_diagnostic failed for {self.path} "
+                                  f"since the method is not implemented for all ESSAdapter subclasses.")
 
-    @abstractmethod
     def get_T1_diagnostic(self):
         """
         Returns the T1 diagnostic from output log.
-        If multiple occurrences exist, returns the last occurrence
+        If multiple occurrences exist, returns the last occurrence.
+        Should be implemented by the relevant subclass.
         """
-        pass
+        raise NotImplementedError(f"get_T1_diagnostic failed for {self.path} "
+                                  f"since the method is not implemented for all ESSAdapter subclasses.")
 
     def get_symmetry_properties(self):
         """
