@@ -77,27 +77,28 @@ def ess_factory(fullpath: str) -> Type[ESSAdapter]:
     """
 
     ess_name = None
-    with open(fullpath, 'r') as f:
-        if os.path.splitext(fullpath)[1] in ['.xyz', '.dat', '.geometry']:
-            ess_name = 'terachem'
-        line = f.readline()
-        while ess_name is None and line != '':
-            if 'gaussian' in line.lower():
-                ess_name = 'gaussian'
-                break
-            elif 'molpro' in line.lower():
-                ess_name = 'molpro'
-                break
-            elif 'O   R   C   A' in line or 'orca' in line.lower():
-                ess_name = 'orca'
-                break
-            elif 'qchem' in line.lower():
-                ess_name = 'qchem'
-                break
-            elif 'terachem' in line.lower():
-                ess_name = 'terachem'
-                break
+    if os.path.splitext(fullpath)[1] in ['.xyz', '.dat', '.geometry']:
+        ess_name = 'terachem'
+    else:
+        with open(fullpath, 'r') as f:
             line = f.readline()
+            while ess_name is None and line != '':
+                if 'gaussian' in line.lower():
+                    ess_name = 'gaussian'
+                    break
+                elif 'molpro' in line.lower():
+                    ess_name = 'molpro'
+                    break
+                elif 'O   R   C   A' in line or 'orca' in line.lower():
+                    ess_name = 'orca'
+                    break
+                elif 'qchem' in line.lower():
+                    ess_name = 'qchem'
+                    break
+                elif 'terachem' in line.lower():
+                    ess_name = 'terachem'
+                    break
+                line = f.readline()
     if ess_name is None:
         raise InputError(f'The file at {fullpath} could not be identified as a '
                          f'Gaussian, Molpro, Orca, QChem, or TeraChem log file.')
