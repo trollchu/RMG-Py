@@ -53,9 +53,9 @@ from rmgpy.quantity import Quantity
 
 from arkane.common import ArkaneSpecies, symbol_by_number, get_principal_moments_of_inertia
 from arkane.encorr.corr import get_atom_correction, get_bac
-from arkane.ess import GaussianLog, Log, MolproLog, OrcaLog, QChemLog, TeraChemLog
+from arkane.ess import ESSAdapter, GaussianLog, MolproLog, OrcaLog, QChemLog, TeraChemLog
+from arkane.ess.factory import ess_factory, Log
 from arkane.output import prettify
-from arkane.util import determine_qm_software
 
 ################################################################################
 
@@ -226,6 +226,11 @@ class StatMechJob(object):
         species object.
         """
         path = self.path
+        directory = os.path.abspath(os.path.dirname(path))
+        if not os.path.isfile(path):
+            path = os.path.join(directory, path)
+
+        ess_list = ['GaussianLog', 'MolproLog', 'OrcaLog', 'QChemLog', 'TeraChemLog', 'Log']
         is_ts = isinstance(self.species, TransitionState)
         file_extension = os.path.splitext(path)[1]
         if file_extension in ['.yml', '.yaml']:
@@ -266,8 +271,6 @@ class StatMechJob(object):
             'ScanLog': ScanLog,
             'Log': Log
         }
-
-        directory = os.path.abspath(os.path.dirname(path))
 
         with open(path, 'r') as f:
             try:
@@ -314,7 +317,7 @@ class StatMechJob(object):
             except KeyError:
                 raise InputError('Model chemistry {0!r} not found in from dictionary of energy values in species file '
                                  '{1!r}.'.format(self.modelChemistry, path))
-        if isinstance(energy, Log) and not os.path.isfile(energy.path):
+        if (isinstance(energy, ESSAdapter) or isinstance(energy, Log)) and not os.path.isfile(energy.path):
             modified_energy_path = os.path.join(directory, energy.path)
             if not os.path.isfile(modified_energy_path):
                 raise InputError('Could not find single point energy file for species {0} '
@@ -323,9 +326,11 @@ class StatMechJob(object):
                 energy.path = modified_energy_path
         e0, e_electronic = None, None  # E0 = e_electronic + ZPE
         energy_log = None
-        if isinstance(energy, Log) and type(energy).__name__ == 'Log':
-            energy_log = determine_qm_software(energy.path)
-        elif isinstance(energy, Log) and type(energy).__name__ != 'Log':
+        if (isinstance(energy, ESSAdapter) or isinstance(energy, Log)) and \
+                any(type(energy).__name__ == ess for ess in ess_list):
+            energy_log = ess_factory(energy.path)
+        elif (isinstance(energy, ESSAdapter) or isinstance(energy, Log)) and \
+                any(type(energy).__name__ == ess for ess in ess_list):
             energy_log = energy
         elif isinstance(energy, float):
             e_electronic = energy
@@ -355,8 +360,9 @@ class StatMechJob(object):
                                  'in the specified path {1}'.format(self.species.label, statmech_log.path))
             else:
                 statmech_log.path = modified_statmech_path
-        if isinstance(statmech_log, Log) and type(statmech_log).__name__ == 'Log':
-            statmech_log = determine_qm_software(statmech_log.path)
+        if (isinstance(statmech_log, ESSAdapter) or isinstance(statmech_log, Log)) and \
+                any(type(statmech_log).__name__ == ess for ess in ess_list):
+            statmech_log = ess_factory(statmech_log.path)
         try:
             geom_log = local_context['geometry']
             if not os.path.isfile(geom_log.path):
@@ -366,8 +372,9 @@ class StatMechJob(object):
                                      'in the specified path {1}'.format(self.species.label, geom_log.path))
                 else:
                     geom_log.path = modified_geom_path
-            if isinstance(geom_log, Log) and type(geom_log).__name__ == 'Log':
-                geom_log = determine_qm_software(geom_log.path)
+            if (isinstance(geom_log, ESSAdapter) or isinstance(geom_log, Log)) and \
+                    any(type(geom_log).__name__ == ess for ess in ess_list):
+                geom_log = ess_factory(geom_log.path)
         except KeyError:
             geom_log = statmech_log
             logging.debug("Reading geometry from the specified frequencies file.")
@@ -567,8 +574,9 @@ class StatMechJob(object):
                                              'in the specified path {1}'.format(self.species.label, scan_log.path))
                         else:
                             scan_log.path = modified_scan_path
-                    if isinstance(scan_log, Log) and type(scan_log).__name__ == 'Log':
-                        scan_log = determine_qm_software(scan_log.path)
+                    if (isinstance(scan_log, ESSAdapter) or isinstance(scan_log, Log)) and \
+                            any(type(scan_log).__name__ == ess for ess in ess_list):
+                        scan_log = ess_factory(scan_log.path)
                     if isinstance(scan_log, (GaussianLog, QChemLog)):
                         v_list, angle = scan_log.load_scan_energies()
                         try:

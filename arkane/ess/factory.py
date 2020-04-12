@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# encoding: utf-8
 
 ###############################################################################
 #                                                                             #
@@ -28,105 +29,175 @@
 ###############################################################################
 
 """
-A general class for parsing quantum mechanical log files
+A module for generating ESS adapters
 """
 
 import logging
-import os.path
-import shutil
-from abc import ABC, abstractmethod
+import os
+from typing import Type
 
+from .adapter import ESSAdapter
+
+from rmgpy.exceptions import InputError
 from rmgpy.qm.qmdata import QMData
 from rmgpy.qm.symmetry import PointGroupCalculator
 
-################################################################################
+_registered_ess_adapters = {}
 
 
-class Log(ABC):
+def register_ess_adapter(ess: str,
+                         ess_class: Type[ESSAdapter],
+                         ) -> None:
     """
-    Represent a general log file.
-    The attribute `path` refers to the location on disk of the log file of interest.
+    A register for the ESS adapters.
+
+    Args:
+        ess: A string representation for an ESS adapter
+        ess_class: The ESS adapter class
+
+    Raises:
+        TypeError: If ``ess_class`` is not an ``ESSAdapter`` instance.
+    """
+    if not issubclass(ess_class, ESSAdapter):
+        raise TypeError(f'{ess_class} is not an ESSAdapter')
+    _registered_ess_adapters[ess] = ess_class
+
+
+def ess_factory(fullpath: str) -> Type[ESSAdapter]:
+    """
+    A factory generating the ESS adapter corresponding to ``ess_adapter``.
+    Given a path to the log file of a QM software, determine whether it is
+    Gaussian, Molpro, QChem, Orca, or TeraChem
+
+    Args:
+        fullpath (str): The disk location of the output file of interest.
+
+    Returns:
+        Type[ESSAdapter]: The requested ESSAdapter child, initialized with the respective arguments.
     """
 
-    @abstractmethod
+    ess_name = None
+    with open(fullpath, 'r') as f:
+        if os.path.splitext(fullpath)[1] in ['.xyz', '.dat', '.geometry']:
+            ess_name = 'terachem'
+        line = f.readline()
+        while ess_name is None and line != '':
+            if 'gaussian' in line.lower():
+                ess_name = 'gaussian'
+                break
+            elif 'molpro' in line.lower():
+                ess_name = 'molpro'
+                break
+            elif 'O   R   C   A' in line or 'orca' in line.lower():
+                ess_name = 'orca'
+                break
+            elif 'qchem' in line.lower():
+                ess_name = 'qchem'
+                break
+            elif 'terachem' in line.lower():
+                ess_name = 'terachem'
+                break
+            line = f.readline()
+    if ess_name is None:
+        raise InputError(f'The file at {fullpath} could not be identified as a '
+                         f'Gaussian, Molpro, Orca, QChem, or TeraChem log file.')
+
+    return _registered_ess_adapters[ess_name](path=fullpath)
+
+
+class Log(object):
+    def __init__(self, fullpath: str):
+        """
+        This class is not a part of the Factory/Adapter design class. It was added here to keep Arkane
+        backward compatible with current input files that use ``Log`` calls. Added a .ess attribute that stores
+        the specific ESS Adapter, along with shortcut methods to call the respective Adapter method.
+        """
+        self._path = fullpath
+        self.ess = None
+        self.set_ess()
+
+    @property
+    def path(self):
+        """
+        The path to an ESS log file
+        """
+        return self._path
+
+    @path.setter
+    def path(self, value):
+        """
+        Allow setting the ESS log file path, and self.ess which is derived from the log file.
+        """
+        self._path = value
+        self.set_ess()
+
+    def set_ess(self):
+        """
+        Set self.ess according to self._path if the latter is a file
+        """
+        if os.path.isfile(self.path):
+            self.ess = ess_factory(self.path)
+
     def get_number_of_atoms(self):
         """
         Return the number of atoms in the molecular configuration.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.get_number_of_atoms()
 
-    @abstractmethod
     def load_force_constant_matrix(self):
         """
         Return the force constant matrix (in Cartesian coordinates).
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_force_constant_matrix()
 
-    @abstractmethod
     def load_geometry(self):
         """
         Return the optimum geometry of the molecular configuration.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_geometry()
 
-    @abstractmethod
     def load_conformer(self, symmetry=None, spin_multiplicity=0, optical_isomers=None, label=''):
         """
-        Load the molecular degree of freedom data from a frequency calculations.
-        Should be implemented by a subclass.
+        Load the molecular degree of freedom data from a frequency calculation.
         """
-        pass
+        return self.ess.load_conformer(symmetry=symmetry, spin_multiplicity=spin_multiplicity,
+                                       optical_isomers=optical_isomers, label=label)
 
-    @abstractmethod
     def load_energy(self, zpe_scale_factor=1.):
         """
         Load the energy.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_energy(zpe_scale_factor=zpe_scale_factor)
 
-    @abstractmethod
     def load_zero_point_energy(self):
         """
         Load the unscaled zero-point energy.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_zero_point_energy()
 
-    @abstractmethod
     def load_scan_energies(self):
         """
         Extract the optimized energies from a potential energy scan.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_scan_energies()
 
-    @abstractmethod
     def load_scan_pivot_atoms(self):
         """
         Extract the atom numbers which the rotor scan pivots around.
-        Should be implemented by a subclass.
         """
-        pass
+        return self.ess.load_scan_pivot_atoms()
 
-    @abstractmethod
     def load_scan_frozen_atoms(self):
         """
-        Extract the atom numbers which were frozen during the scan.
-        Should be implemented by a subclass.
+        Extract the atom numbers where were frozen during the scan.
         """
-        pass
+        return self.ess.load_scan_frozen_atoms()
 
-    @abstractmethod
     def load_negative_frequency(self):
         """
-        Return the imaginary frequency from a transition state frequency calculation.
-        Should be implemented by a subclass.
+        Return the negative frequency from a transition state frequency calculation.
         """
-        pass
+        return self.ess.load_negative_frequency()
 
     def get_symmetry_properties(self):
         """
@@ -162,23 +233,19 @@ class Log(ABC):
                     optical_isomers, symmetry))
             else:
                 logging.error('Symmetry algorithm errored when computing point group\nfor log file located at{0}.\n'
-                              'Manually provide values in Arkane input.'.format(self.path))
+                              'Manually provide values in Arkane input.'.format(self.ess.path))
             return optical_isomers, symmetry, pg.point_group
         finally:
             shutil.rmtree(scr_dir)
 
-    @abstractmethod
     def get_D1_diagnostic(self):
         """
-        This method returns the D1 diagnostic for certain quantum jobs
-        Should be implemented by a subclass.
+        Returns the D1 diagnostic from the output log for certain quantum jobs.
         """
-        pass
+        return self.ess.get_D1_diagnostic()
 
-    @abstractmethod
     def get_T1_diagnostic(self):
         """
-        This method returns the T1 diagnostic for certain quantum jobs
-        Should be implemented by a subclass.
+        Returns the T1 diagnostic from the output log for certain quantum jobs.
         """
-        pass
+        return self.ess.get_T1_diagnostic()
