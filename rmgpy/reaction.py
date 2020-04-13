@@ -738,14 +738,14 @@ class Reaction:
                 logging.info("For reaction {0!s} Ea raised from {1:.1f} to {2:.1f} kJ/mol.".format(
                     self, self.kinetics.Ea.value_si / 1000., Ea / 1000.))
                 self.kinetics.Ea.value_si = Ea
-        if isinstance(self.kinetics, (Arrhenius, StickingCoefficient)):  # SurfaceArrhenius is a subclass of Arrhenius
-            Ea = self.kinetics.Ea.value_si
-            if H0 >= 0 and Ea < H0:
-                self.kinetics.Ea.value_si = H0
-                self.kinetics.comment += "\nEa raised from {0:.1f} to {1:.1f} kJ/mol to match endothermicity of " \
-                                         "reaction.".format( Ea / 1000., H0 / 1000.)
-                logging.info("For reaction {2!s}, Ea raised from {0:.1f} to {1:.1f} kJ/mol to match "
-                             "endothermicity of reaction.".format( Ea / 1000., H0 / 1000., self))
+        # if isinstance(self.kinetics, (Arrhenius, StickingCoefficient)):  # SurfaceArrhenius is a subclass of Arrhenius
+        #     Ea = self.kinetics.Ea.value_si
+        #     if H0 >= 0 and Ea < H0:
+        #         self.kinetics.Ea.value_si = H0
+        #         self.kinetics.comment += "\nEa raised from {0:.1f} to {1:.1f} kJ/mol to match endothermicity of " \
+        #                                  "reaction.".format( Ea / 1000., H0 / 1000.)
+        #         logging.info("For reaction {2!s}, Ea raised from {0:.1f} to {1:.1f} kJ/mol to match "
+        #                      "endothermicity of reaction.".format( Ea / 1000., H0 / 1000., self))
         if force_positive and isinstance(self.kinetics, (Arrhenius, StickingCoefficient)) and self.kinetics.Ea.value_si < 0:
             self.kinetics.comment += "\nEa raised from {0:.1f} to 0 kJ/mol.".format(self.kinetics.Ea.value_si / 1000.)
             logging.info("For reaction {1!s} Ea raised from {0:.1f} to 0 kJ/mol.".format(
